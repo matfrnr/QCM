@@ -1,90 +1,88 @@
 @baseUrl = http://localhost:3000/api/v1
 @authToken = {{login.response.body.data.accessToken}}
 
-### 1. Route de Santé (Health Check)
-GET {{baseUrl}}/health
-
-###
+### ---------------------------------------------------
+### PRÉREQUIS : AUTHENTIFICATION (Obligatoire pour tester)
+### ---------------------------------------------------
 
 # @name register
 POST {{baseUrl}}/auth/register
 Content-Type: application/json
 
 {
-  "email": "student@neon.tp",
+  "email": "student3@neon.com",
   "password": "Password123!",
   "name": "Etu Neon"
 }
 
 ###
-
 # @name login
 POST {{baseUrl}}/auth/login
 Content-Type: application/json
 
 {
-  "email": "student@neon.tp",
+  "email": "student3@neon.com",
   "password": "Password123!"
 }
 
-###
+### ---------------------------------------------------
+### ROUTES DE LA CONSIGNE
+### ---------------------------------------------------
 
+### 1. Route de santé
+GET {{baseUrl}}/health
+
+
+### 2. POST /qcms : Crée un QCM avec les questions
 # @name createQcm
 POST {{baseUrl}}/qcms
 Authorization: Bearer {{authToken}}
 Content-Type: application/json
 
 {
-  "title": "Quiz Node.js & Prisma",
-  "description": "Évaluation des connaissances de base sur les architectures Express",
-  "questions": [
-    {
-      "text": "Quel composant Prisma permet de migrer la base de données ?",
-      "propositions": [
-        { "text": "Prisma Client", "isCorrect": false },
-        { "text": "Prisma Migrate", "isCorrect": true },
-        { "text": "Prisma Studio", "isCorrect": false }
-      ]
-    },
-    {
-      "text": "Quelle méthode Express permet de brancher un middleware global ?",
-      "propositions": [
-        { "text": "app.listen()", "isCorrect": false },
-        { "text": "app.use()", "isCorrect": true },
-        { "text": "app.get()", "isCorrect": false }
-      ]
-    }
-  ]
+  "title": "Quiz Express et Prisma",
+  "question1": {
+    "text": "Que signifie API ?",
+    "propositions": [
+      { "text": "Application Programming Interface", "isCorrect": true },
+      { "text": "Advanced Program Integration", "isCorrect": false },
+      { "text": "Automated Process Interaction", "isCorrect": false }
+    ]
+  },
+  "question2": {
+    "text": "Quel port est utilisé par défaut dans cet exercice ?",
+    "propositions": [
+      { "text": "8080", "isCorrect": false },
+      { "text": "3000", "isCorrect": true }
+    ]
+  }
 }
 
-### Enregistrer l'ID du QCM créé pour les requêtes suivantes
+### Sauvegarde automatique de l'ID du QCM créé
 @qcmId = {{createQcm.response.body.data.id}}
 
 
-### 2. Récupérer la liste des QCMs
+### 3. GET /qcms : Liste tous les QCMs
 GET {{baseUrl}}/qcms
 Authorization: Bearer {{authToken}}
 
-###
 
-### 3. Récupérer le QCM spécifique (Ordre aléatoire des questions et choix masqués)
+### 4. GET /qcms/:id : Récupère un QCM par son id
 GET {{baseUrl}}/qcms/{{qcmId}}
 Authorization: Bearer {{authToken}}
 
-###
 
+### 5. GET /qcms/:id/question : Récupère la prochaine question d'un QCM
 # @name getNextQuestion
-### 4. Récupérer la prochaine question disponible
 GET {{baseUrl}}/qcms/{{qcmId}}/question
 Authorization: Bearer {{authToken}}
 
-### Extraire les données de la prochaine question dynamique
+### Sauvegarde automatique des IDs pour répondre
 @questionId = {{getNextQuestion.response.body.data.id}}
 @propositionId = {{getNextQuestion.response.body.data.propositions[0].id}}
 
-###
 
-### 5. Soumettre une réponse (On sélectionne la première proposition reçue)
+### 6. POST /qcms/:id/response : Soumet une réponse
 POST {{baseUrl}}/qcms/{{qcmId}}/response
 Authorization: Bearer {{authToken}}
 Content-Type: application/json
@@ -94,14 +92,12 @@ Content-Type: application/json
   "propositionId": "{{propositionId}}"
 }
 
-###
 
-### 6. Consulter le score actuel de l'utilisateur sur ce QCM
+### 7. GET /qcms/:id/result : Récupère le résultat d'un QCM (score)
 GET {{baseUrl}}/qcms/{{qcmId}}/result
 Authorization: Bearer {{authToken}}
 
-###
 
-### 7. Supprimer le QCM
+### 8. DELETE /qcms/:id : Supprime un QCM et les questions associées
 DELETE {{baseUrl}}/qcms/{{qcmId}}
 Authorization: Bearer {{authToken}}

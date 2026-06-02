@@ -1,8 +1,8 @@
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
-const { success, error } = require("../utils/response");
+const { success, error } = require("../utils/response.js"); // Garde le .js si tu l'as ajouté
 
-// Fonction pour mélanger un tableau (ordre aléatoire)
+// Fonction pour mélanger un tableau
 const shuffle = (array) => {
   for (let i = array.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -11,27 +11,44 @@ const shuffle = (array) => {
   return array;
 };
 
-// Créer un QCM
+// 1. Créer un QCM
 exports.createQcm = async (req, res, next) => {
   try {
-    const { title, questions } = req.body;
+    const { title, question1, question2 } = req.body;
+
+    const createQuestionWithPropositions = async (qData) => {
+      const question = await prisma.question.create({
+        data: {
+          text: qData.text,
+          propositions: {
+            create: qData.propositions.map((p) => ({ text: p.text })),
+          },
+        },
+        include: { propositions: true },
+      });
+
+      const correctPropData = qData.propositions.find((p) => p.isCorrect);
+      const correctPropDb = question.propositions.find(
+        (p) => p.text === correctPropData.text,
+      );
+
+      const finalQuestion = await prisma.question.update({
+        where: { id: question.id },
+        data: { proposition_good_id: correctPropDb.id },
+      });
+
+      return finalQuestion.id;
+    };
+
+    const q1Id = await createQuestionWithPropositions(question1);
+    const q2Id = await createQuestionWithPropositions(question2);
 
     const newQcm = await prisma.qcm.create({
-      data: {
-        title,
-        questions: {
-          create: questions.map((q) => ({
-            text: q.text,
-            propositions: {
-              create: q.propositions.map((p) => ({
-                text: p.text,
-                isCorrect: p.isCorrect,
-              })),
-            },
-          })),
-        },
+      data: { title, question1Id: q1Id, question2Id: q2Id },
+      include: {
+        question1: { include: { propositions: true } },
+        question2: { include: { propositions: true } },
       },
-      include: { questions: { include: { propositions: true } } },
     });
 
     return success(res, newQcm, 201);
@@ -40,7 +57,7 @@ exports.createQcm = async (req, res, next) => {
   }
 };
 
-// Récupérer tous les QCMs
+// 2. Récupérer tous les QCMs
 exports.getAllQcms = async (req, res, next) => {
   try {
     const qcms = await prisma.qcm.findMany();
@@ -50,41 +67,67 @@ exports.getAllQcms = async (req, res, next) => {
   }
 };
 
-// Récupérer un QCM par ID (avec propositions mélangées)
+// 3. Récupérer un QCM par ID (avec les propositions mélangées)
 exports.getQcmById = async (req, res, next) => {
   try {
     const qcm = await prisma.qcm.findUnique({
       where: { id: req.params.id },
       include: {
-        questions: {
+        question1: {
+          include: { propositions: { select: { id: true, text: true } } },
+        },
+        question2: {
           include: { propositions: { select: { id: true, text: true } } },
         },
       },
     });
     if (!qcm) return error(res, "QCM non trouvé", 404);
 
-    qcm.questions = shuffle(qcm.questions);
-    qcm.questions.forEach((q) => (q.propositions = shuffle(q.propositions)));
+    // On regroupe les 2 questions dans un tableau et on mélange tout
+    const questions = [qcm.question1, qcm.question2];
+    questions.forEach((q) => {
+      q.propositions = shuffle(q.propositions);
+    });
 
-    return success(res, qcm);
+    return success(res, {
+      id: qcm.id,
+      title: qcm.title,
+      questions: shuffle(questions),
+    });
   } catch (err) {
     next(err);
   }
 };
 
-// Obtenir la prochaine question disponible
+// 4. Obtenir la prochaine question (Celle qui causait l'erreur 500)
 exports.getNextQuestion = async (req, res, next) => {
   try {
     const { id: qcmId } = req.params;
     const userId = req.user.id;
 
-    const openQuestions = await prisma.question.findMany({
-      where: {
-        qcmId,
-        responses: { none: { userId } }, // Questions où l'utilisateur n'a pas de réponse
+    const qcm = await prisma.qcm.findUnique({
+      where: { id: qcmId },
+      include: {
+        question1: {
+          include: {
+            propositions: { select: { id: true, text: true } },
+            responses: { where: { userId } }, // On regarde si l'utilisateur y a déjà répondu
+          },
+        },
+        question2: {
+          include: {
+            propositions: { select: { id: true, text: true } },
+            responses: { where: { userId } },
+          },
+        },
       },
-      include: { propositions: { select: { id: true, text: true } } },
     });
+
+    if (!qcm) return error(res, "QCM non trouvé", 404);
+
+    const openQuestions = [];
+    if (qcm.question1.responses.length === 0) openQuestions.push(qcm.question1);
+    if (qcm.question2.responses.length === 0) openQuestions.push(qcm.question2);
 
     if (openQuestions.length === 0) {
       return success(res, { message: "QCM terminé !", finished: true });
@@ -92,6 +135,7 @@ exports.getNextQuestion = async (req, res, next) => {
 
     const nextQuestion = shuffle(openQuestions)[0];
     nextQuestion.propositions = shuffle(nextQuestion.propositions);
+    delete nextQuestion.responses; // On masque la réponse de la base
 
     return success(res, { ...nextQuestion, finished: false });
   } catch (err) {
@@ -99,17 +143,27 @@ exports.getNextQuestion = async (req, res, next) => {
   }
 };
 
-// Soumettre une réponse
+// 5. Soumettre une réponse
 exports.submitResponse = async (req, res, next) => {
   try {
     const userId = req.user.id;
     const { questionId, propositionId } = req.body;
+    const { id: qcmId } = req.params;
 
-    const userResponse = await prisma.response.upsert({
+    const qcm = await prisma.qcm.findUnique({ where: { id: qcmId } });
+
+    // On s'assure que l'ID de la question correspond bien à l'une des 2 questions de CE QCM
+    if (
+      !qcm ||
+      (qcm.question1Id !== questionId && qcm.question2Id !== questionId)
+    ) {
+      return error(res, "La question n'appartient pas à ce QCM", 400);
+    }
+
+    await prisma.response.upsert({
       where: { userId_questionId: { userId, questionId } },
       update: { propositionId },
       create: { userId, questionId, propositionId },
-      include: { proposition: true },
     });
 
     return success(res, { message: "Réponse enregistrée" });
@@ -118,18 +172,41 @@ exports.submitResponse = async (req, res, next) => {
   }
 };
 
-// Obtenir le résultat
+// 6. Obtenir le résultat
 exports.getQcmResult = async (req, res, next) => {
   try {
     const { id: qcmId } = req.params;
     const userId = req.user.id;
 
-    const totalQuestions = await prisma.question.count({ where: { qcmId } });
-    const correctAnswers = await prisma.response.count({
-      where: { userId, question: { qcmId }, proposition: { isCorrect: true } },
+    const qcm = await prisma.qcm.findUnique({
+      where: { id: qcmId },
+      include: {
+        question1: { include: { responses: { where: { userId } } } },
+        question2: { include: { responses: { where: { userId } } } },
+      },
     });
 
-    return success(res, { score: `${correctAnswers} / ${totalQuestions}` });
+    if (!qcm) return error(res, "QCM non trouvé", 404);
+
+    let correctAnswers = 0;
+
+    // On compare l'ID de la proposition choisie par le user avec la bonne réponse (relation 1/1 de ta base)
+    if (
+      qcm.question1.responses.length > 0 &&
+      qcm.question1.responses[0].propositionId ===
+        qcm.question1.proposition_good_id
+    ) {
+      correctAnswers++;
+    }
+    if (
+      qcm.question2.responses.length > 0 &&
+      qcm.question2.responses[0].propositionId ===
+        qcm.question2.proposition_good_id
+    ) {
+      correctAnswers++;
+    }
+
+    return success(res, { score: `${correctAnswers} / 2` });
   } catch (err) {
     next(err);
   }
