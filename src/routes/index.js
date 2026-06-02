@@ -1,13 +1,17 @@
-const express = require('express');
-const authRoutes  = require('./auth');
-const usersRoutes = require('./users');
+const express = require("express");
+const authRoutes = require("./auth");
+const usersRoutes = require("./users");
+const qcmsRoutes = require("./qcms").default; // <-- On importe nos routes QCM
 
 const router = express.Router();
 
-router.use('/auth',  authRoutes);
-router.use('/users', usersRoutes);
+// Route de santé de l'API
+router.get("/health", (req, res) => {
+  res.json({ status: "ok", service: "qcm-service" });
+});
 
-// Ajoute tes routes ici :
-// router.use('/products', require('./products'));
+router.use("/auth", authRoutes);
+router.use("/users", usersRoutes);
+router.use("/qcms", qcmsRoutes); // <-- On les branche ici
 
 module.exports = router;

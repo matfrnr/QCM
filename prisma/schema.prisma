@@ -1,0 +1,51 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String     @id @default(uuid())
+  email     String     @unique
+  password  String
+  responses Response[]
+}
+
+model Qcm {
+  id        String     @id @default(uuid())
+  title     String
+  questions Question[]
+}
+
+model Question {
+  id           String        @id @default(uuid())
+  text         String
+  qcmId        String
+  qcm          Qcm           @relation(fields: [qcmId], references: [id], onDelete: Cascade)
+  propositions Proposition[]
+  responses    Response[]
+}
+
+model Proposition {
+  id         String     @id @default(uuid())
+  text       String
+  isCorrect  Boolean    @default(false)
+  questionId String
+  question   Question   @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  responses  Response[]
+}
+
+model Response {
+  id            String      @id @default(uuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questionId    String
+  question      Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  propositionId String
+  proposition   Proposition @relation(fields: [propositionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questionId])
+}

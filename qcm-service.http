@@ -1,0 +1,107 @@
+@baseUrl = http://localhost:3000/api/v1
+@authToken = {{login.response.body.data.accessToken}}
+
+### 1. Route de Santé (Health Check)
+GET {{baseUrl}}/health
+
+###
+
+# @name register
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "student@neon.tp",
+  "password": "Password123!",
+  "name": "Etu Neon"
+}
+
+###
+
+# @name login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "student@neon.tp",
+  "password": "Password123!"
+}
+
+###
+
+# @name createQcm
+POST {{baseUrl}}/qcms
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "title": "Quiz Node.js & Prisma",
+  "description": "Évaluation des connaissances de base sur les architectures Express",
+  "questions": [
+    {
+      "text": "Quel composant Prisma permet de migrer la base de données ?",
+      "propositions": [
+        { "text": "Prisma Client", "isCorrect": false },
+        { "text": "Prisma Migrate", "isCorrect": true },
+        { "text": "Prisma Studio", "isCorrect": false }
+      ]
+    },
+    {
+      "text": "Quelle méthode Express permet de brancher un middleware global ?",
+      "propositions": [
+        { "text": "app.listen()", "isCorrect": false },
+        { "text": "app.use()", "isCorrect": true },
+        { "text": "app.get()", "isCorrect": false }
+      ]
+    }
+  ]
+}
+
+### Enregistrer l'ID du QCM créé pour les requêtes suivantes
+@qcmId = {{createQcm.response.body.data.id}}
+
+
+### 2. Récupérer la liste des QCMs
+GET {{baseUrl}}/qcms
+Authorization: Bearer {{authToken}}
+
+###
+
+### 3. Récupérer le QCM spécifique (Ordre aléatoire des questions et choix masqués)
+GET {{baseUrl}}/qcms/{{qcmId}}
+Authorization: Bearer {{authToken}}
+
+###
+
+# @name getNextQuestion
+### 4. Récupérer la prochaine question disponible
+GET {{baseUrl}}/qcms/{{qcmId}}/question
+Authorization: Bearer {{authToken}}
+
+### Extraire les données de la prochaine question dynamique
+@questionId = {{getNextQuestion.response.body.data.id}}
+@propositionId = {{getNextQuestion.response.body.data.propositions[0].id}}
+
+###
+
+### 5. Soumettre une réponse (On sélectionne la première proposition reçue)
+POST {{baseUrl}}/qcms/{{qcmId}}/response
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "questionId": "{{questionId}}",
+  "propositionId": "{{propositionId}}"
+}
+
+###
+
+### 6. Consulter le score actuel de l'utilisateur sur ce QCM
+GET {{baseUrl}}/qcms/{{qcmId}}/result
+Authorization: Bearer {{authToken}}
+
+###
+
+### 7. Supprimer le QCM
+DELETE {{baseUrl}}/qcms/{{qcmId}}
+Authorization: Bearer {{authToken}}
