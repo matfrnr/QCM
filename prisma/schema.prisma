@@ -14,30 +14,53 @@ model User {
   responses Response[]
 }
 
+// 1. Table QCM avec exactement 2 questions
 model Qcm {
-  id        String     @id @default(uuid())
-  title     String
-  questions Question[]
+  id    String @id @default(uuid())
+  title String
+
+  // Clé étrangère vers la Question 1
+  question1Id String
+  question1   Question @relation("QcmQuestion1", fields: [question1Id], references: [id])
+
+  // Clé étrangère vers la Question 2
+  question2Id String
+  question2   Question @relation("QcmQuestion2", fields: [question2Id], references: [id])
 }
 
+// 2. Table Question avec relation 1/1 vers la bonne proposition et 1/* vers toutes
 model Question {
-  id           String        @id @default(uuid())
-  text         String
-  qcmId        String
-  qcm          Qcm           @relation(fields: [qcmId], references: [id], onDelete: Cascade)
-  propositions Proposition[]
-  responses    Response[]
+  id   String @id @default(uuid())
+  text String
+
+  // Relation 1/1 : L'ID de l'unique bonne réponse
+  proposition_good_id String?      @unique
+  goodProposition     Proposition? @relation("GoodProposition", fields: [proposition_good_id], references: [id])
+
+  // Relation 1/* : La liste de toutes les propositions possibles
+  propositions Proposition[] @relation("QuestionPropositions")
+
+  // Relations inverses depuis le QCM
+  qcmAsQuestion1 Qcm[]      @relation("QcmQuestion1")
+  qcmAsQuestion2 Qcm[]      @relation("QcmQuestion2")
+  responses      Response[]
 }
 
+// 3. Table Proposition
 model Proposition {
-  id         String     @id @default(uuid())
-  text       String
-  isCorrect  Boolean    @default(false)
+  id   String @id @default(uuid())
+  text String
+
+  // Clé étrangère vers la Question (1/*)
   questionId String
-  question   Question   @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  responses  Response[]
+  question   Question @relation("QuestionPropositions", fields: [questionId], references: [id], onDelete: Cascade)
+
+  // Relation inverse de la relation 1/1 (la question dont c'est la bonne réponse)
+  goodFor   Question?  @relation("GoodProposition")
+  responses Response[]
 }
 
+// 4. Table Response (On garde ça pour enregistrer les scores de l'utilisateur)
 model Response {
   id            String      @id @default(uuid())
   userId        String
