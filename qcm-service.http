@@ -1,10 +1,6 @@
 @baseUrl = http://localhost:3000/api/v1
 @authToken = {{login.response.body.data.accessToken}}
 
-### ---------------------------------------------------
-### PRÉREQUIS : AUTHENTIFICATION (Obligatoire pour tester)
-### ---------------------------------------------------
-
 # @name register
 POST {{baseUrl}}/auth/register
 Content-Type: application/json
@@ -25,18 +21,13 @@ Content-Type: application/json
   "password": "Password123!"
 }
 
-### ---------------------------------------------------
-### ROUTES DE LA CONSIGNE
-### ---------------------------------------------------
-
-### 1. Route de santé
+### HEALTH
 GET {{baseUrl}}/health
 
 
-### 2. POST /qcms : Crée un QCM avec les questions
+### Crée un QCM
 # @name createQcm
 POST {{baseUrl}}/qcms
-Authorization: Bearer {{authToken}}
 Content-Type: application/json
 
 {
@@ -58,31 +49,26 @@ Content-Type: application/json
   }
 }
 
-### Sauvegarde automatique de l'ID du QCM créé
 @qcmId = {{createQcm.response.body.data.id}}
 
-
-### 3. GET /qcms : Liste tous les QCMs
+### Liste tous les QCMs
 GET {{baseUrl}}/qcms
-Authorization: Bearer {{authToken}}
 
 
-### 4. GET /qcms/:id : Récupère un QCM par son id
+### Récupère un QCM par son id
 GET {{baseUrl}}/qcms/{{qcmId}}
-Authorization: Bearer {{authToken}}
 
 
-### 5. GET /qcms/:id/question : Récupère la prochaine question d'un QCM
+### Récupère la prochaine question d'un QCM
 # @name getNextQuestion
 GET {{baseUrl}}/qcms/{{qcmId}}/question
 Authorization: Bearer {{authToken}}
 
-### Sauvegarde automatique des IDs pour répondre
 @questionId = {{getNextQuestion.response.body.data.id}}
 @propositionId = {{getNextQuestion.response.body.data.propositions[0].id}}
 
 
-### 6. POST /qcms/:id/response : Soumet une réponse
+### Soumet une réponse
 POST {{baseUrl}}/qcms/{{qcmId}}/response
 Authorization: Bearer {{authToken}}
 Content-Type: application/json
@@ -93,11 +79,10 @@ Content-Type: application/json
 }
 
 
-### 7. GET /qcms/:id/result : Récupère le résultat d'un QCM (score)
+### Récupère le résultat d'un QCM
 GET {{baseUrl}}/qcms/{{qcmId}}/result
 Authorization: Bearer {{authToken}}
 
 
-### 8. DELETE /qcms/:id : Supprime un QCM et les questions associées
+### Supprime un QCM
 DELETE {{baseUrl}}/qcms/{{qcmId}}
-Authorization: Bearer {{authToken}}

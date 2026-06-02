@@ -211,3 +211,26 @@ exports.getQcmResult = async (req, res, next) => {
     next(err);
   }
 };
+
+// 7. Supprimer un QCM et ses questions associées
+exports.deleteQcm = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    // 1. Chercher le QCM pour récupérer les IDs de ses questions
+    const qcm = await prisma.qcm.findUnique({ where: { id } });
+    if (!qcm) return error(res, "QCM non trouvé", 404);
+
+    // 2. Supprimer d'abord le QCM (pour enlever le lien de clé étrangère)
+    await prisma.qcm.delete({ where: { id } });
+
+    // 3. Supprimer les 2 questions associées
+    // (Les propositions et réponses seront supprimées automatiquement grâce au onDelete: Cascade de la base de données)
+    await prisma.question.delete({ where: { id: qcm.question1Id } });
+    await prisma.question.delete({ where: { id: qcm.question2Id } });
+
+    return success(res, { message: "QCM et questions supprimés avec succès" });
+  } catch (err) {
+    next(err);
+  }
+};
