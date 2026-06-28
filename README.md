@@ -1,123 +1,83 @@
-# Express API Template 🚀
+# QCM Service
 
-Template prêt à l'emploi pour une API REST Express avec authentification JWT.
+API REST minimaliste pour gérer des QCM (Questionnaires à Choix Multiples).
 
-## Stack
+Ce projet fournit un backend Node.js/Express avec authentification JWT, persistance via Prisma (Postgres ou SQLite selon configuration), et endpoints pour créer, parcourir, répondre et obtenir les résultats d'un QCM.
 
-- **Express 4** — framework HTTP
-- **JWT** — access token (15min) + refresh token (7j) avec rotation
-- **bcryptjs** — hashage des mots de passe
-- **Joi** — validation des entrées
-- **Helmet + CORS + Rate Limiting** — sécurité de base
-- **Jest + Supertest** — tests
+**Technologies**
 
-## Démarrage rapide
+- Node.js + Express
+- Prisma (ORM)
+- JWT pour l'authentification (access + refresh tokens)
+- bcrypt pour le hash des mots de passe
+- Joi pour la validation des payloads
+- Jest + Supertest pour les tests
+
+**Structure**
+
+- `src/app.js` : point d'entrée de l'application
+- `src/routes/` : définition des routes (`/auth`, `/users`, `/qcms`)
+- `src/controllers/` : logique métier pour l'authentification et la gestion des QCMs
+- `src/middlewares/` : middlewares d'authentification, validation et gestion des erreurs
+- `prisma/schema.prisma` : modèle de données (Questions, Propositions, QCM, Réponses, Users)
+- `tests/` : tests unitaires / d'intégration
+
+## Installation
+
+1. Installer les dépendances :
 
 ```bash
-# 1. Clone et installe
-git clone <repo> mon-projet && cd mon-projet
 npm install
+```
 
-# 2. Configure l'environnement
-cp .env.example .env
-# Édite .env : change JWT_SECRET et JWT_REFRESH_SECRET !
+2. Configurer les variables d'environnement (exemple `.env`):
 
-# 3. Lance en dev
+```
+PORT=3000
+DATABASE_URL="file:./dev.db" # ou votre connexion Postgres
+JWT_SECRET=change_me
+JWT_REFRESH_SECRET=change_me_too
+```
+
+3. Initialiser la base Prisma (exemple SQLite) :
+
+```bash
+npx prisma migrate dev --name init
+npx prisma generate
+```
+
+## Usage
+
+Démarrer le serveur en développement :
+
+```bash
 npm run dev
 ```
 
-## Structure
+## Endpoints principaux
 
-```
-src/
-├── app.js                  # Point d'entrée, middlewares globaux
-├── config/
-│   └── jwt.js              # Génération et vérification des tokens
-├── controllers/
-│   ├── authController.js   # Register, login, refresh, logout, me
-│   └── usersController.js  # Exemple de ressource protégée
-├── middlewares/
-│   ├── auth.js             # authenticate + authorize(role)
-│   ├── errorHandler.js     # 404 + gestion globale des erreurs
-│   └── validate.js         # Validation Joi + schémas
-├── routes/
-│   ├── index.js            # Router principal
-│   ├── auth.js             # Routes /auth/*
-│   └── users.js            # Routes /users/* (protégées)
-└── utils/
-    └── response.js         # Helpers JSON cohérents
-tests/
-└── auth.test.js
-```
+- POST `/api/v1/auth/register` : création d'un compte (body: `email`, `password`, `name`)
+- POST `/api/v1/auth/login` : authentification (body: `email`, `password`) → renvoie `accessToken` et `refreshToken`
+- POST `/api/v1/auth/refresh` : rotation des tokens (body: `refreshToken`)
+- GET `/api/v1/auth/me` : informations sur l'utilisateur (protected)
 
-## Endpoints
-
-### Auth
-| Méthode | Route | Auth | Description |
-|---------|-------|------|-------------|
-| POST | `/api/v1/auth/register` | ❌ | Créer un compte |
-| POST | `/api/v1/auth/login` | ❌ | Se connecter |
-| POST | `/api/v1/auth/refresh` | ❌ | Renouveler les tokens |
-| POST | `/api/v1/auth/logout` | ❌ | Révoquer le refresh token |
-| GET | `/api/v1/auth/me` | ✅ | Profil courant |
-
-### Users (exemple)
-| Méthode | Route | Auth | Rôle |
-|---------|-------|------|------|
-| GET | `/api/v1/users` | ✅ | admin |
-| GET | `/api/v1/users/:id` | ✅ | owner ou admin |
-
-## Utilisation des middlewares
-
-```js
-const { authenticate, authorize } = require('./middlewares/auth');
-
-// Route protégée
-router.get('/profile', authenticate, myController);
-
-// Route réservée aux admins
-router.delete('/:id', authenticate, authorize('admin'), myController);
-
-// Plusieurs rôles acceptés
-router.post('/', authenticate, authorize('admin', 'moderator'), myController);
-```
-
-## Ajouter une nouvelle ressource
-
-```bash
-# 1. Crée le controller
-touch src/controllers/productsController.js
-
-# 2. Crée les routes
-touch src/routes/products.js
-
-# 3. Enregistre dans l'index
-# src/routes/index.js → router.use('/products', require('./products'));
-```
+- Toutes les routes `/api/v1/qcms` sont protégées par JWT :
+  - POST `/api/v1/qcms` : créer un QCM (body: `title`, `question1`, `question2` avec leurs `propositions`)
+  - GET `/api/v1/qcms` : lister les QCMs
+  - GET `/api/v1/qcms/:id` : récupérer un QCM (les propositions sont mélangées)
+  - GET `/api/v1/qcms/:id/question` : obtenir la prochaine question non répondue pour l'utilisateur
+  - POST `/api/v1/qcms/:id/response` : soumettre une réponse (body: `questionId`, `propositionId`)
+  - GET `/api/v1/qcms/:id/result` : obtenir le score pour l'utilisateur
+  - DELETE `/api/v1/qcms/:id` : supprimer un QCM et ses questions associées
 
 ## Tests
 
+Lancer la suite de tests :
+
 ```bash
-npm test           # Lance tous les tests
-npm test -- --watch  # Mode watch
+npm test
 ```
 
-## Variables d'environnement
+## Remarques & limites
 
-| Variable | Description | Défaut |
-|----------|-------------|--------|
-| `PORT` | Port du serveur | `3000` |
-| `NODE_ENV` | Environnement | `development` |
-| `JWT_SECRET` | Clé secrète access token | ⚠️ À changer |
-| `JWT_EXPIRES_IN` | Durée access token | `15m` |
-| `JWT_REFRESH_SECRET` | Clé secrète refresh token | ⚠️ À changer |
-| `JWT_REFRESH_EXPIRES_IN` | Durée refresh token | `7d` |
-| `ALLOWED_ORIGINS` | Origines CORS (séparées par `,`) | `http://localhost:3000` |
-
-## TODO pour la prod
-
-- [ ] Brancher une vraie DB (Prisma, Sequelize, Mongoose…)
-- [ ] Stocker les refresh tokens en DB ou Redis (actuellement en mémoire)
-- [ ] Ajouter des logs structurés (winston, pino)
-- [ ] CI/CD (GitHub Actions)
-- [ ] Docker
+- Le controller d'`auth` utilise actuellement un stockage en mémoire (`Map`) pour les utilisateurs et un `Set` pour les refresh tokens — adapté pour le développement uniquement. En production, remplacez par une vraie table `User` et un stockage persistant des refresh tokens (BD ou Redis).
